@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: namespaceconfig-preupgrade
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: namespaceconfig-preupgrade
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
+  - redhatcop.redhat.io
+  resources:
+  - namespaceconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - redhatcop.redhat.io
+  resources:
+  - namespaceconfigs/finalizers
+  verbs:
+  - update
+  - patch
+- apiGroups:
+  - redhatcop.redhat.io
+  resources:
+  - namespaceconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: namespaceconfig-preupgrade
+  labels:
+    {{- include "msai-aks-base.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: namespaceconfig-preupgrade
+subjects:
+  - name: namespaceconfig-preupgrade
+    namespace: kube-system
+    kind: ServiceAccount
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: namespaceconfig-preupgrade
+  namespace: kube-system
+spec:
+  template:
+    metadata:
+      name: namespaceconfig-preupgrade
+    spec:
+      restartPolicy: Never
+      serviceAccountName: namespaceconfig-preupgrade
+      containers:
+      - name: preupgrade
+        image: "bitnami/kubectl:latest"
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+            set -x  # print each line as evaluated
+            nsconfig_objects=$(kubectl get namespaceconfig | grep -v NAME | awk '{ print $1 }')
+            test -z "$nsconfig_objects" && echo "No namespaceconfig objects found..." && exit 0
+            echo "Checking the Finalizer value and deletiontimestamp in the objects."
+            for nsco in $nsconfig_objects; do
+              obj_details=$(kubectl get namespaceconfig $nsco -o jsonpath='{.metadata.finalizers[0]},{.metadata.deletionTimestamp}')
+              finializer_name=$(echo $obj_details | awk -F',' '{print $1}')
+              deletion_timestamp=$(echo $obj_details | awk -F','  '{print $2}')
+              if [ "$finializer_name" == "namespace-config-operator" -a "$deletion_timestamp" != "" ]; then
+                  echo  "Found old Finializer in the NamespaceConfig object and also marked for deletion. \n
+                        Making the Finalizers list to empty to get the object deleted."
+                  kubectl patch --type=merge namespaceconfig  $nsco -p '{"metadata": {"finalizers": null}}'
+              fi
+            done
+            while true; do
+                namespaceconfig_crd=$(kubectl get crd namespaceconfigs.redhatcop.redhat.io --ignore-not-found=true | grep -v NAME | awk '{ print $1 }')
+                test -z "$namespaceconfig_crd" && echo "namespaceconfigs CRD is deleted..." && exit 0
+                echo "Waiting for the namespaceconfigs crd to be deleted. Sleeping 10 seconds."
+                sleep 10
+            done
