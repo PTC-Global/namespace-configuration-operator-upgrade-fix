@@ -78,22 +78,22 @@ spec:
         - -c
         - |
             set -x  # print each line as evaluated
-            nsconfig_objects=$(kubectl get namespaceconfig | grep -v NAME | awk '{ print $1 }')
-            test -z "$nsconfig_objects" && echo "No namespaceconfig objects found..." && exit 0
+            NSCONFIG_OBJECTS=$(kubectl get namespaceconfig | grep -v NAME | awk '{ print $1 }')
+            test -z "$NSCONFIG_OBJECTS" && echo "No namespaceconfig objects found..." && exit 0
             echo "Checking the Finalizer value and deletiontimestamp in the objects."
-            for nsco in $nsconfig_objects; do
-              obj_details=$(kubectl get namespaceconfig $nsco -o jsonpath='{.metadata.finalizers[0]},{.metadata.deletionTimestamp}')
-              finializer_name=$(echo $$obj_details | awk -F',' '{print $1}')
-              deletion_timestamp=$(echo $obj_details | awk -F','  '{print $2}')
-              if [ "$finializer_name" == "namespace-config-operator" -a "$deletion_timestamp" != "" ]; then
+            for NSCO in $NSCONFIG_OBJECTS; do
+              OBJ_DETAILS=$(kubectl get namespaceconfig $NSCO -o jsonpath='{.metadata.finalizers[0]},{.metadata.deletionTimestamp}')
+              FINIALIZER_NAME=$(echo $$OBJ_DETAILS | awk -F',' '{print $1}')
+              DELETION_TIMESTAMP=$(echo $OBJ_DETAILS | awk -F','  '{print $2}')
+              if [ "$FINIALIZER_NAME" == "namespace-config-operator" -a "$DELETION_TIMESTAMP" != "" ]; then
                   echo  "Found old Finializer in the NamespaceConfig object and also marked for deletion. \n
                         Making the Finalizers list to empty to get the object deleted."
-                  kubectl patch --type=merge namespaceconfig  $nsco -p '{"metadata": {"finalizers": null}}'
+                  kubectl patch --type=merge namespaceconfig  $NSCO -p '{"metadata": {"finalizers": null}}'
               fi
             done
             while true; do
-                namespaceconfig_crd=$(kubectl get crd namespaceconfigs.redhatcop.redhat.io --ignore-not-found=true | grep -v NAME | awk '{ print $1 }')
-                test -z "$namespaceconfig_crd" && echo "namespaceconfigs CRD is deleted..." && exit 0
+                NAMESPACECONFIG_CRD=$(kubectl get crd namespaceconfigs.redhatcop.redhat.io --ignore-not-found=true | grep -v NAME | awk '{ print $1 }')
+                test -z "$NAMESPACECONFIG_CRD" && echo "namespaceconfigs CRD is deleted..." && exit 0
                 echo "Waiting for the namespaceconfigs crd to be deleted. Sleeping 10 seconds."
                 sleep 10
             done
