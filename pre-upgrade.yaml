@@ -76,13 +76,12 @@ spec:
         - -c
         - |
             set -x  # print each line as evaluated
-            NSCONFIG_OBJECTS=$(kubectl get namespaceconfig | grep -v NAME | awk '{ print $$1 }')
+            NSCONFIG_OBJECTS=$(kubectl get namespaceconfig -o jsonpath='{.items[*].metadata.name}')
             test -z "$NSCONFIG_OBJECTS" && echo "No namespaceconfig objects found..." && exit 0
             echo "Checking the Finalizer value and deletiontimestamp in the objects."
             for NSCO in $NSCONFIG_OBJECTS; do
-              OBJ_DETAILS=$(kubectl get namespaceconfig $NSCO -o jsonpath='{.metadata.finalizers[0]},{.metadata.deletionTimestamp}')
-              FINIALIZER_NAME=$(echo $$OBJ_DETAILS | awk -F',' '{print $$1}')
-              DELETION_TIMESTAMP=$(echo $OBJ_DETAILS | awk -F','  '{print $$2}')
+              FINIALIZER_NAME=$(kubectl get namespaceconfig $NSCO -o jsonpath='{.metadata.finalizers[0]})
+              DELETION_TIMESTAMP=$(kubectl get namespaceconfig $NSCO -o jsonpath='{.metadata.deletionTimestamp}')
               if [ "$FINIALIZER_NAME" == "namespace-config-operator" -a "$DELETION_TIMESTAMP" != "" ]; then
                   echo  "Found old Finializer in the NamespaceConfig object and also marked for deletion. \n
                         Making the Finalizers list to empty to get the object deleted."
@@ -90,7 +89,7 @@ spec:
               fi
             done
             while true; do
-                NAMESPACECONFIG_CRD=$(kubectl get crd namespaceconfigs.redhatcop.redhat.io --ignore-not-found=true | grep -v NAME | awk '{ print $$1 }')
+                NAMESPACECONFIG_CRD=$(kubectl get crd namespaceconfigs.redhatcop.redhat.io --ignore-not-found=true -o jsonpath='{.metadata.name}')
                 test -z "$NAMESPACECONFIG_CRD" && echo "namespaceconfigs CRD is deleted..." && exit 0
                 echo "Waiting for the namespaceconfigs crd to be deleted. Sleeping 10 seconds."
                 sleep 10
