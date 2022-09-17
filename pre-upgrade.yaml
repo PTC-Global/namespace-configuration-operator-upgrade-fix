@@ -80,7 +80,7 @@ spec:
             test -z "$NSCONFIG_OBJECTS" && echo "No namespaceconfig objects found..." && exit 0
             echo "Checking the Finalizer value and deletiontimestamp in the objects."
             for NSCO in $NSCONFIG_OBJECTS; do
-              FINIALIZER_NAME=$(kubectl get namespaceconfig $NSCO -o jsonpath='{.metadata.finalizers[0]})
+              FINIALIZER_NAME=$(kubectl get namespaceconfig $NSCO -o jsonpath='{.metadata.finalizers[0]}')
               DELETION_TIMESTAMP=$(kubectl get namespaceconfig $NSCO -o jsonpath='{.metadata.deletionTimestamp}')
               if [ "$FINIALIZER_NAME" == "namespace-config-operator" -a "$DELETION_TIMESTAMP" != "" ]; then
                   echo  "Found old Finializer in the NamespaceConfig object and also marked for deletion. \n
